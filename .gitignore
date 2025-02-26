@@ -1,13 +1,13 @@
-# Ignore virtual environment folder
-env/
+# Dossiers node_modules
+**/node_modules/
 
-# Ignore Python bytecode files
-__pycache__/
-*.pyc
-*.pyo
-
-# Ignore PDF files (if they don't need to be tracked)
-*.pdf
-
-# Ignore logs
+# Plus d'exclusions
+**/env/
+**/venv/
+**/__pycache__/
+**/uploads/
+**/outputs/
+*.py[cod]
+*.env
 *.log
+*.pdf
