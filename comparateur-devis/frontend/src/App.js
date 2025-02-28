@@ -96,7 +96,7 @@ function App() {
             <form onSubmit={handleSubmit}>
               <div className="mb-6">
                 <h2 className="text-lg font-medium text-gray-900 mb-4">
-                  Téléchargez vos devis PDF
+                  Importez vos devis PDF
                 </h2>
                 <FileUpload onFilesChange={handleFilesChange} />
                 

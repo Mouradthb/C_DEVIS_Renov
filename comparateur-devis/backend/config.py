@@ -1,24 +1,17 @@
 import os
 from dotenv import load_dotenv
 
-# Charger les variables d'environnement
+# Charger les variables d'environnement (fonctionne en local)
+# Sur Vercel, les variables d'environnement sont injectées directement
 load_dotenv()
 
 # Configuration de l'API
 API_VERSION = "v1"
 API_PREFIX = f"/api/{API_VERSION}"
 
-# Dossiers
-UPLOAD_FOLDER = "uploads"
-OUTPUT_FOLDER = "outputs"
-
-# Créer les dossiers s'ils n'existent pas
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-
 # Configuration OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = "gpt-4o"  # ou "gpt-4-turbo" selon les besoins
+OPENAI_MODEL = "gpt-3.5-turbo"  # Modèle moins coûteux compatible avec l'analyse d'images/PDFs
 
 # Prompts personnalisables
 DEFAULT_PROMPT = """

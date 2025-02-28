@@ -5,17 +5,18 @@ from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import List
-import shutil
+import base64
+from io import BytesIO
 
-from config import API_PREFIX, UPLOAD_FOLDER, OUTPUT_FOLDER, DEFAULT_PROMPT
-from ai_utils import analyze_pdfs
+from config import API_PREFIX, DEFAULT_PROMPT, OPENAI_API_KEY, OPENAI_MODEL
 
 app = FastAPI(title="Comparateur de Devis API")
 
 # Configuration CORS pour permettre les requêtes depuis le frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # À remplacer par l'URL du frontend en production
+    # Sur Vercel, remplacez par l'URL réelle de votre frontend
+    allow_origins=["*"],  # Pour le développement, à restreindre en production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,47 +45,67 @@ async def compare_quotes(
     
     # Créer un ID unique pour cette comparaison
     comparison_id = str(uuid.uuid4())
-    comparison_folder = os.path.join(UPLOAD_FOLDER, comparison_id)
-    os.makedirs(comparison_folder, exist_ok=True)
     
-    # Sauvegarder les fichiers PDF
-    pdf_paths = []
-    for i, file in enumerate(files):
-        file_path = os.path.join(comparison_folder, f"devis_{i+1}.pdf")
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        pdf_paths.append(file_path)
+    # Lire les fichiers en mémoire
+    pdf_contents = []
+    for file in files:
+        content = await file.read()
+        pdf_contents.append(content)
     
-    # Analyser les PDF avec ChatGPT
+    # Analyser les PDF avec l'API OpenAI
     try:
-        analysis_result = analyze_pdfs(pdf_paths, prompt)
+        from openai import OpenAI
+        client = OpenAI(api_key=OPENAI_API_KEY)
         
-        # Sauvegarder le résultat
-        output_path = os.path.join(OUTPUT_FOLDER, f"{comparison_id}.json")
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(analysis_result, f, ensure_ascii=False, indent=2)
+        # Encoder les PDF en base64
+        pdf_base64 = []
+        for content in pdf_contents:
+            encoded = base64.b64encode(content).decode('utf-8')
+            pdf_base64.append(encoded)
         
+        # Créer les messages avec les fichiers PDF
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:application/pdf;base64,{pdf_base64[0]}",
+                            "detail": "high"
+                        }
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:application/pdf;base64,{pdf_base64[1]}",
+                            "detail": "high"
+                        }
+                    }
+                ]
+            }
+        ]
+        
+        # Appeler l'API ChatGPT
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=messages,
+            response_format={"type": "json_object"},
+            max_tokens=4000
+        )
+        
+        # Extraire et parser la réponse JSON
+        result = response.choices[0].message.content
         return JSONResponse(content={
             "comparison_id": comparison_id,
-            "result": analysis_result
+            "result": json.loads(result)
         })
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de l'analyse: {str(e)}")
 
-@app.get(f"{API_PREFIX}/results/{{comparison_id}}")
-async def get_result(comparison_id: str):
-    """Récupère le résultat d'une comparaison précédente"""
-    result_path = os.path.join(OUTPUT_FOLDER, f"{comparison_id}.json")
-    
-    if not os.path.exists(result_path):
-        raise HTTPException(status_code=404, detail="Résultat non trouvé")
-    
-    with open(result_path, "r", encoding="utf-8") as f:
-        result = json.load(f)
-    
-    return JSONResponse(content=result)
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+# Ne pas inclure cette partie sur Vercel
+# if __name__ == "__main__":
+#     import uvicorn
+#     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
